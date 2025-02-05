@@ -1,0 +1,25 @@
+src/python_utils_AndrewGarwood/regex_utils.py>
+
+
+def equivalent_alphanumeric(s1: str, s2: str) -> bool:
+    s1 = re.sub(r'[\[\]\(\)\s]', '', s1)
+    <REMOVED> s1 = re.sub(r'P\.?L\.?', '', s1).replace('International', 'Intl').strip()
+    s2 = re.sub(r'[\[\]\(\)\s]', '', s2)
+    <REMOVED> s2 = re.sub(r'P\.?L\.?', '', s2).replace('International', 'Intl').strip()
+    return s1.casefold() == s2.casefold()
+
+src/python_utils_AndrewGarwood/log_utils.py>
+
+def read_file_lines_as_list(filepath: str) -> List[Any]:
+    with open(filepath, 'r') as file:
+        file_data = file.read().strip()
+        result = []
+        for list_item in file_data.split("\n"):
+            if list_item.strip() != '':
+                result.append(list_item.strip())
+        return result
+    
+def write_list_to_file(filepath: str, data: List[str]) -> None:
+    with open(filepath, 'w') as file:
+        for item in data:
+            file.write(f"{item}\n")

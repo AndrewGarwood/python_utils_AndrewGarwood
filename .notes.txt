@@ -1,0 +1,3 @@
+PS C:\Users\drewg\.dev\python_utils_package_workspace>
+.venv\Scripts\activate
+deactivate
