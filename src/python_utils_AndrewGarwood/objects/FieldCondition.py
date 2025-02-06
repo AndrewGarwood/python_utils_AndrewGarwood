@@ -15,6 +15,7 @@ class FieldMap:
     field: str
     value: Tuple[str] | List[str] | str
     ignore_case: bool = False
+    
     def __post_init__(self):
         if isinstance(self.value, str):
             self.value = (self.value,)

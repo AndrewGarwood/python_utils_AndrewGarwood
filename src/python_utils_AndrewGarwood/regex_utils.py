@@ -2,7 +2,33 @@ from typing import List, Tuple, Optional
 import re
 from pandas import Series
 
+__all__ = [
+    'extract_leaf', 'ahead_is', 'ahead_not', 'behind_is', 'behind_not',
+    'equivalent_alphanumeric', 'equivalent_alphanumeric_split_set', 'extract_unit_measurements',
+    'extract_dimensions', 'extract_name_from_address', 'extract_phone', 'extract_zip', 'extract_state',
+    'extract_city', 'STATE_ABBREVIATIONS', 'STATE_NAMES', 'street_suffix_pattern', 'street_suffix_list',
+    'suite_pattern', 'name_suffixes', 'number_pattern', 'units', 'dimension_symbol_pattern'
+]
+
 def extract_leaf(s: str, delimiter: str = ':') -> str:
+    """
+    Extract the last part of a string separated by a delimiter.
+
+    Args:
+        s (str): _description_
+        delimiter (str, optional): _description_. Defaults to ':'.
+
+    Returns:
+        str: _description_
+    
+    Example:
+    key1 and key2 are permutations of the same item SKU
+        key1 = parentClass1:childClass1:leaf
+        key2 = parentCLass2:leaf
+        extract_leaf(key1) -> 'leaf'
+        extract_leaf(key2) -> 'leaf'
+    
+    """
     return s.rsplit(delimiter, 1)[-1] if delimiter in s else s
 
 def ahead_is(*args: str) -> str:
@@ -17,12 +43,52 @@ def behind_is(*args: str) -> str:
 def behind_not(*args: str) -> str:
     return '|'.join(rf'(?<!{arg})' for arg in args)
 
-def equivalent_alphanumeric(s1: str, s2: str) -> bool:
+def equivalent_alphanumeric(
+    s1: str, 
+    s2: str, 
+    case_sensitive: bool = False
+) -> bool:
     s1 = re.sub(r'[\[\]\(\)\s]', '', s1)
     s2 = re.sub(r'[\[\]\(\)\s]', '', s2)
-    return s1.casefold() == s2.casefold()
+    if not case_sensitive:
+        s1 = s1.casefold()
+        s2 = s2.casefold()
+    return s1 == s2
 
+def equivalent_alphanumeric_split_set(
+    s1: str, 
+    s2: str, 
+    delimiter: str = ' ', 
+    case_sensitive: bool = False
+) -> bool:
+    """_summary_
 
+    Args:
+        s1 (str): _description_
+        s2 (str): _description_
+        delimiter (str, optional): _description_. Defaults to ' ' (space).
+        case_sensitive (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        bool: _description_
+    Motivating Example:
+    >>> s1 = "an apple fell"
+    >>> s2 = "fell an apple"
+    >>> set1 = set(s1.split())
+    >>> set1
+    {'an', 'apple', 'fell'}
+    >>> set2 = set(s2.split())
+    >>> set2
+    {'an', 'apple', 'fell'}
+    >>> set1 == set2
+    True
+    """
+    if not case_sensitive:
+        s1 = s1.casefold()
+        s2 = s2.casefold()
+    s1 = re.sub(r'[\[\]\(\)\s]', '', s1)
+    s2 = re.sub(r'[\[\]\(\)\s]', '', s2)
+    return set(s1.split(delimiter)) == set(s2.split(delimiter))
 
 def extract_unit_measurements(s: str) -> Tuple[str, List[str]]:
     if not s or s in ['nan', '']:
@@ -165,12 +231,9 @@ def extract_zip(text: str)  -> Tuple[str, str | None]:
     text = zip_code_pattern.sub('', text).strip()
     return text, zip_code    
 
-
-
-
 def extract_state(text: str) -> Tuple[str, str | None]:
     states_pattern = re.compile(
-        r'\b(' + '|'.join(state_abbrevs + state_full_names) + r')\b',
+        r'\b(' + '|'.join(STATE_ABBREVIATIONS + STATE_NAMES) + r')\b',
         re.IGNORECASE
     )
     # Find all matches of state abbreviations/full names
@@ -196,7 +259,7 @@ def extract_city(text: str, cities: Optional[List[str]] = None) -> Tuple[str, Op
         city = text[city_start_idx:].strip('., ').split(',')[0].strip()
     else:
         # If no suite/unit pattern, look for a street suffix
-        street_match = re.search(street_suffixes, text)
+        street_match = re.search(street_suffix_pattern, text)
         if street_match:
             street_end_idx = street_match.end()
             # Assume city follows immediately after the street suffix
@@ -221,13 +284,13 @@ def extract_city(text: str, cities: Optional[List[str]] = None) -> Tuple[str, Op
         text = re.sub(re.escape(city), '', text).strip(', ')
     return text, city
 
-state_abbrevs: List[str] = [
+STATE_ABBREVIATIONS: List[str] = [
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
     "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
     "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
     "VA", "WA", "WV", "WI", "WY"
 ]
-state_full_names: List[str] = [
+STATE_NAMES: List[str] = [
     "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
     "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
     "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
@@ -236,7 +299,7 @@ state_full_names: List[str] = [
     "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
     "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
 ]
-street_suffixes = r'\b(?:Rd|Road|St|Street|Ave|Avenue|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Pl|Place|Sq|Square|Terrace|Hwy|Pkwy|Parkway|Cir|Circle|Way|Ste|Suite|(PO Box[\s#]*\d+))\.*\b'
+street_suffix_pattern = r'\b(?:Rd|Road|St|Street|Ave|Avenue|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Pl|Place|Sq|Square|Terrace|Hwy|Pkwy|Parkway|Cir|Circle|Way|Ste|Suite|(PO Box[\s#]*\d+))\.*\b'
 street_suffix_list = ['Rd', 'Road', 'St', 'Street', 'Ave', 'Avenue', 'Blvd', 'Boulevard', 'Ln', 'Lane', 'Dr', 'Drive', 'Ct', 'Court', 'Pl', 'Place', 'Sq', 'Square', 'Terrace', 'Hwy', 'Pkwy', 'Parkway', 'Cir', 'Circle', 'Way', 'Ste', 'Suite', 'PO Box']  #'|'.join
 suite_pattern = r'(Suite|Ste|Unit|#)\s*[A-Z\d]+'
 

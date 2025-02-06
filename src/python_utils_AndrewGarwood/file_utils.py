@@ -1,34 +1,100 @@
 import os
-from typing import List
+from typing import List, Dict, Literal
 import csv
 import pandas as pd
 from pandas import DataFrame
 
+__all__ = [
+    'validate_file_extension', 'get_subdirectories', 'map_key_to_file_paths', 'recursively_get_files_of_type',
+    'tsv_to_csv', 'csv_to_tsv', 'tsv_to_excel', 'excel_to_tsv', 'csv_to_excel', 'excel_to_csv'
+]
 
 def validate_file_extension(file_path: str, ext: str) -> str:
+    """
+    Ensure file_path has the desired extension
+    
+    Args:
+        file_path (str):
+        ext (str): desired file extension
+
+    Raises:
+        FileNotFoundError:
+
+    Returns:
+        str: file_path with desired extension
+    """
     ext = ext if ext.startswith('.') else '.' + ext
     if not file_path.endswith(ext):
         file_path += ext
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f'File not found: {file_path}')
+    if  not os.path.isfile(file_path) and not os.path.isdir(os.path.dirname(file_path)):
+        raise FileNotFoundError(f'File not found or invalid path: {file_path}')
     return file_path
 
-def get_subdirectories(dir_path: str) -> List[str]:
+def get_subdirectories(dir: str) -> List[str]:
+    """_summary_
+    Given directory path, return list of first level subdirectories
+    
+    Args:
+        dir (str): directory/folder containing subdirectories
+
+    Returns:
+        List[str]: list of first level subdirectories
+    """
     subdir_list: List[str] = [
-        folder_name for folder_name in os.listdir(dir_path)\
-            if os.path.isdir(os.path.join(dir_path, folder_name))
+        folder_name for folder_name in os.listdir(dir)\
+            if os.path.isdir(os.path.join(dir, folder_name))
     ]
     return subdir_list
+
+def map_key_to_file_paths(
+    file_paths: List[str],
+    dir_delimiter: Literal['/', '\\'] = '\\',
+    key_delimiter: str = ' '
+) -> Dict[str, List[str]]:
+    """_summary_
+    Assumes file naming convention in which expected key is first element in file_name.split(key_delimiter).
+    Replaces underscore with key_delimiter.
+    
+    Originally used with recursively_get_files_of_type(...) to map SKUs to Quality Control files so that 
+    I could quickly open them in another script without having to search for a specific SKU's file either manually or with os.walk().
+    
+    Args:
+        file_paths (List[str]): _description_
+        dir_delimiter (Literal['/', '\\'], optional): _description_. Defaults to '\\'.
+        key_delimiter (str, optional): _description_. Defaults to ' '.
+
+    Returns:
+        Dict[str, List[str]]: _description_
+    """
+    key_to_file_path_map: Dict[str, List[str]] = {}
+    for file_path in file_paths:
+        file_name: str = file_path.replace('_', key_delimiter).rsplit(dir_delimiter, 1)[-1]
+        key: str = file_name.split(key_delimiter)[0]
+        if key in key_to_file_path_map.keys():
+            key_to_file_path_map[key].append(file_path)
+        else:
+            key_to_file_path_map[key] = [file_path]
+    return key_to_file_path_map
 
 def recursively_get_files_of_type(
     dir: str,
     file_types: List[str] = ['pdf', 'docx', 'doc', 'xlsx', 'xls'],
     exclude_keywords: List[str] = ['waiver']
 ) -> List[str]:
+    """_summary_
+
+    Args:
+        dir (str): _description_
+        file_types (List[str], optional): _description_. Defaults to ['pdf', 'docx', 'doc', 'xlsx', 'xls'].
+        exclude_keywords (List[str], optional): _description_. Defaults to ['waiver'].
+
+    Returns:
+        List[str]: _description_
+    """
     files_found: List[str] = []
     for root, dirs, files in os.walk(dir):
         for file in files:
-            if (all(keyword not in file.lower() for keyword in exclude_keywords) 
+            if ((not exclude_keywords or all(keyword not in file.lower() for keyword in exclude_keywords))
                 and file.rsplit('.', 1)[-1] in file_types
                 ):
                 files_found.append(os.path.join(root, file))

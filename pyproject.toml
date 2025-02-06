@@ -6,10 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "python_utils_AndrewGarwood"
 version = "0.0.1"
 description = "A collection of python scripts that are useful to me. I want to keep them in one place for ease of access and version control."
-authors = [{name = "Andrew Garwood", email = "andrew.garwood.949@gmail.com"}]
+authors = [
+    {name = "Andrew Garwood", email = "andrew.garwood.949@gmail.com"}
+]
 license = {file = "LICENSE"}
 readme = "README.md"
 dependencies = [
     "pandas",
     "openpyxl"
 ]
+
+[project.urls]
+Homepage = "https://github.com/AndrewGarwood/python_utils_AndrewGarwood"
+Issues = "https://github.com/AndrewGarwood/python_utils_AndrewGarwood/issues"

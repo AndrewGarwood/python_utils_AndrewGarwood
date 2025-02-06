@@ -1,4 +1,4 @@
-from typing import List, Dict, Set, Any, Tuple, Union, Callable, Optional, Literal
+from typing import List, Dict, Set, Any, Tuple, Union, Callable, Optional, Literal, overload
 import warnings
 from datetime import datetime
 import pandas as pd
@@ -9,6 +9,13 @@ from .write_utils import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
 from objects.FieldCondition import FieldCondition, FieldMap
 
 # TODO: make better usage of df.apply() and other Pandas functions 
+
+__all__ = [
+    'has_columns', 'impose_column_order', 'map_key_to_row_indices', 'extract_duplicate_rows_from_key_map',
+    'extract_permuted_key_rows', 'custom_join', 'extract_rows_with_empty_fields', 'update_field',
+    'field_contains', 'field_equals', 'field_not_equals', 'field_startswith', 'filter_by_text', 'filter_by_date_range',
+    'group_and_aggregate'
+]
 
 def has_columns(
     df: DataFrame, 
@@ -24,7 +31,7 @@ def has_columns(
     """
     if isinstance(cols_to_check, str):
         cols_to_check = [cols_to_check]
-    return all(col in df.columns for col in cols_to_check)
+    return all(col in df.columns for col in cols_to_check) if df is not None else False
 
 def impose_column_order(
     df: DataFrame, 
@@ -47,10 +54,13 @@ def impose_column_order(
     """
     if not has_columns(df, column_order):
         raise ValueError('Invalid Column Name(s)')
+    elif from_start and from_end:
+        raise ValueError('from_start and from_end cannot both be True')
     remaining_columns = [col for col in df.columns if col not in column_order]
     result_order = column_order + remaining_columns if from_start else \
         remaining_columns + column_order if from_end else column_order
     return df[result_order]
+
 def map_key_to_row_indices(
     df: DataFrame, 
     key_col: str | int = 'Item Name/Number',
@@ -106,10 +116,9 @@ def extract_permuted_key_rows(
 ) -> DataFrame:
     """
     Used to identify duplicate item SKUs in QuickBooks Item Export
-    Example: key1 and key2 are permutations of the same item SKU, 14-500 
-        key1=Marketing Supply:MARKETING MATERIALS:14-500
-        key2=PACKAGING:14-500
-    
+    Example: key1 and key2 are permutations of the same item SKU
+        key1=parentClass1:childClass1:leaf
+        key2=parentCLass2:leaf
     Args:
         df (DataFrame): _description_
         permuted_key_col (str, optional): _description_. Defaults to 'Item'.
@@ -130,7 +139,6 @@ def extract_permuted_key_rows(
     duplicates_df: DataFrame = extract_duplicate_rows_from_key_map(df, key_map)
     return duplicates_df
 
-
 def custom_join(
     base_df: DataFrame, 
     permuted_df: DataFrame, 
@@ -144,6 +152,8 @@ def custom_join(
 ) -> DataFrame:
     """_summary_
     Originally used in context of adding account fields to a tsv of 2 cols [Item Name/Number, Display Name]
+    from QuickBooks Item Export
+    
     Args:
         base_df (DataFrame): _description_
         permuted_df (DataFrame): _description_
@@ -196,7 +206,7 @@ def custom_join(
                             ],
                             print_to_console=False
                         )
-                    # base_df.at[base_index, col] = ext_val
+                    # base_df.at[base_index, col] = ext_val "You should never modify something you are iterating over"
                     update_dict[(base_index, col)] = ext_val
                     num_updated += 1  
             processed_keys.add(leaf_key)  
@@ -243,6 +253,17 @@ def extract_rows_with_empty_fields(
     key_col: str = 'Item Name/Number',
     enable_detailed_log: bool = False
 ) -> DataFrame:
+    """_summary_
+
+    Args:
+        df (DataFrame): _description_
+        fields (List[str]): _description_
+        key_col (str, optional): _description_. Defaults to 'Item Name/Number'.
+        enable_detailed_log (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        DataFrame: All rows with empty value for one or more fields
+    """
     if not has_columns(df, [key_col]+fields):
         return ValueError('Invalid Column Name')
     empty_rows: List[int] = []
@@ -338,17 +359,15 @@ def update_field(
         df.loc[indices, field] = val
     return df
 
-
-
 def field_equals(
     row: Series, 
-    ignore_case: bool, 
+    case_sensitive: bool, 
     target_field: str, 
     *target: str
 ) -> bool:
     target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
     field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if ignore_case:
+    if case_sensitive:
         field_val = field_val.lower()
         target = [t.lower() for t in target]
     return any([t == field_val for t in target]) \
@@ -356,21 +375,21 @@ def field_equals(
 
 def field_not_equals(
     row: Series, 
-    ignore_case: bool, 
+    case_insensitive: bool, 
     target_field: str, 
     *target: str
 ) -> bool:
-    return not field_equals(row, ignore_case, target_field, *target)
+    return not field_equals(row, case_insensitive, target_field, *target)
 
 def field_startswith(
     row: Series, 
-    ignore_case: bool, 
+    case_insensitive: bool, 
     target_field: str, 
     *target: str
 ) -> bool:
     target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
     field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if ignore_case:
+    if case_insensitive:
         field_val = field_val.lower()
         target = [p.lower() for p in target]
     return field_val.startswith(target) \
@@ -378,13 +397,13 @@ def field_startswith(
 
 def field_contains(
     row: Series, 
-    ignore_case: bool, 
+    case_insensitive: bool, 
     target_field: str, 
     *target: str
 ) -> bool:
     target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
     field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if ignore_case:
+    if case_insensitive:
         field_val = field_val.lower()
         target = [t.lower() for t in target]
     return any([t in field_val for t in target]) \
@@ -393,17 +412,18 @@ def field_contains(
 def filter_by_text(
     df: DataFrame, 
     keep: Dict[str, List[str]]={}, 
-    discard: Dict[str, List[str]]={}
+    discard: Dict[str, List[str]]={},
+    case_sensitive: bool = False
 ) -> DataFrame:
     """
     Filter a DataFrame by whether text is contained in specified columns.
-    Case-sensitive. 
     Discard takes precedence over keep due to order of operations.
     
     Args:
         df (DataFrame): DataFrame with columns containing keys of keep and discard
         keep (Dict[str, List[str]], optional): keep rows if column_key_str contains any of List[str]. Defaults to {}.
         discard (Dict[str, List[str]], optional): discard rows if column_key_str contains any of List[str]. Defaults to {}.
+        case_sensitive (bool, optional): Defaults to False.
     
     Returns:
         DataFrame: filtered DataFrame
@@ -414,11 +434,13 @@ def filter_by_text(
     for col_name, filter_values in keep.items():
         pattern = '|'.join(filter_values)
         df = df[df[col_name].str.contains(
-            pat=pattern, case=False, na=False, regex=True)]
+            pat=pattern, case=case_sensitive, na=False, regex=True
+        )]
     for col_name, filter_values in discard.items():
         pattern = '|'.join(filter_values)
         df = df[~df[col_name].str.contains(
-            pat=pattern, case=False, na=False, regex=True)]
+            pat=pattern, case=case_sensitive, na=False, regex=True
+        )]
     warnings.filterwarnings('default')
     return df
 
@@ -452,15 +474,18 @@ def filter_by_date_range(
         raise ValueError("Date format should be mm/dd/yyyy", e)
     return df[(df[date_col] >= start_date) & (df[date_col] <= end_date)]
 
-def aggregate_by_column(
+def group_and_aggregate(
     df: DataFrame,
-    key_col: str,
-    add_group_bys: List[str]=[],
+    group_by: List[str] | Tuple[str] | str,
     agg_dict: Dict[str, Literal['sum', 'mean', 'count']]={'Amount': 'sum', 'Qty': 'sum'}
 ) -> DataFrame:
-    if not has_columns(df, [key_col]+add_group_bys+list(agg_dict.keys())):
+    if isinstance(group_by, str):
+        group_by = [group_by]
+    elif isinstance(group_by, tuple):
+        group_by = list(group_by)
+    if not has_columns(df, group_by+list(agg_dict.keys())):
         raise ValueError('Invalid Column Name(s)')
-    aggregated_df: DataFrame = df.groupby([key_col]+add_group_bys).agg(
+    result_df: DataFrame = df.groupby(by=group_by).aggregate(
         agg_dict
     ).reset_index()
-    return aggregated_df
+    return result_df

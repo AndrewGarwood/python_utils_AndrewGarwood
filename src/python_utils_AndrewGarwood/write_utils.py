@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Literal
+from typing import List, Dict, Any, Literal, Tuple
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -13,6 +13,10 @@ from .file_utils import validate_file_extension
 load_dotenv()
 DEFAULT_LOG: str = os.getenv('DEFAULT_LOG_FILE')
 FIELD_UPDATE_LOG: str = os.getenv('FIELD_UPDATE_LOG')
+
+__all__ = [
+    'print_group', 'concatenate_dataframes_to_excel', 'concatenate_dataframes_to_excel_sheet', 'write_dataframes_to_excel'
+]
 
 # like a worse version of json pretty printing...
 def print_group(
@@ -45,14 +49,52 @@ def print_group(
                 f.write("\t"*(indent+1) + f"{item}\n")
                 
 
+
 def concatenate_dataframes_to_excel(
+    concat_dict: Dict[Tuple[str, Literal['horizontal', 'vertical', 'h', 'v', 'horiz', 'vert', 'row', 'col']], List[DataFrame]],
+    output_path: str,
+    empty_spaces: int = 1
+) -> None:
+    """
+    Concatenate dataframes to excel sheets.
+    
+    Args:
+        concat_dict (Dict[Tuple[str, Literal['horizontal', 'vertical', 'h', 'v', 'horiz', 'vert', 'row', 'col']], List[DataFrame]]):
+            Dictionary of (sheet name, orientation) tuples mapped to dataframes.
+            {(sheet1, orientation1) : [dataframes to concatenate to sheet1], (sheet2, orientation2) : [dataframes to concatenate to sheet2]}
+        output_path (str): verified by file_utils.validate_file_extension
+        empty_spaces (int, optional): number of empty rows/cols between concatenated dataframes. Defaults to 1.
+    """
+    for (sheet_name, orientation), dataframes in concat_dict.items():
+        concatenate_dataframes_to_excel_sheet(
+            dataframes, 
+            orientation, 
+            output_path, 
+            sheet_name, 
+            empty_spaces
+        )
+
+def concatenate_dataframes_to_excel_sheet(
     dataframes: List[DataFrame], 
     orientation: Literal['horizontal', 'vertical', 'h', 'v', 'horiz', 'vert', 'row', 'col'],
     output_path: str, 
     sheet_name: str = 'Sheet1',
     empty_spaces: int = 1
 ) -> None:
-    output_path += '.xlsx' if not output_path.endswith('.xlsx') else ''
+    """_summary_
+
+    Args:
+        dataframes (List[DataFrame]): _description_
+        orientation (Literal[&#39;horizontal&#39;, &#39;vertical&#39;, &#39;h&#39;, &#39;v&#39;, &#39;horiz&#39;, &#39;vert&#39;, &#39;row&#39;, &#39;col&#39;]): _description_
+        output_path (str): _description_
+        sheet_name (str, optional): _description_. Defaults to 'Sheet1'.
+        empty_spaces (int, optional): _description_. Defaults to 1.
+
+    Raises:
+        ValueError: If given invalid orientation.
+        FileNotFoundError: if given invalid output_path (see file_utils.validate_file_extension).
+    """
+    output_path = validate_file_extension(output_path, '.xlsx')
     try:
         wb: Workbook = load_workbook(output_path)
     except FileNotFoundError:
@@ -82,23 +124,32 @@ def concatenate_dataframes_to_excel(
 
 
 def write_dataframes_to_excel(
-    file_path: str, 
+    output_path: str, 
     df_dict: Dict[str, DataFrame]
 ) -> None:
-    file_path += '.xlsx' if not file_path.endswith('.xlsx') else ''
+    """_summary_
+    Write dataframes to excel using Pandas ExcelWriter. 
+    If the file does not exist, it will be created. 
+    If the file does exist, the dataframes will be appended to the existing file.
+    Freezes the first row of each sheet.
+    Args:
+        output_path (str): _description_
+        df_dict (Dict[str, DataFrame]): _description_
+    """
+    output_path = validate_file_extension(output_path, '.xlsx')
     try: # Load the existing workbook  
-        workbook: Workbook = load_workbook(file_path)
+        workbook: Workbook = load_workbook(output_path)
         sheet_names = workbook.sheetnames
     except FileNotFoundError: # If the file does not exist, create a new workbook
         workbook = None
         sheet_names = []
-        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             df = pd.DataFrame({'': ['']})
             df.to_excel(writer, sheet_name='Sheet0', index=False, freeze_panes=(1, 0))
-        workbook = load_workbook(file_path)
+        workbook = load_workbook(output_path)
         sheet_names = workbook.sheetnames
 
-    with pd.ExcelWriter(file_path, engine='openpyxl', mode='a') as writer:
+    with pd.ExcelWriter(output_path, engine='openpyxl', mode='a') as writer:
         # writer.book = workbook
         for df_name, df in df_dict.items():
             # Ensure unique sheet names

@@ -1,3 +1,5 @@
 PS C:\Users\drewg\.dev\python_utils_package_workspace>
 .venv\Scripts\activate
 deactivate
+
+https://packaging.python.org/en/latest/tutorials/packaging-projects/
