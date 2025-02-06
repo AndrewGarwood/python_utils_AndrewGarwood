@@ -1,0 +1,14 @@
+LICENSE
+README.md
+pyproject.toml
+src/python_utils_AndrewGarwood/__init__.py
+src/python_utils_AndrewGarwood/file_utils.py
+src/python_utils_AndrewGarwood/pd_utils.py
+src/python_utils_AndrewGarwood/regex_utils.py
+src/python_utils_AndrewGarwood/write_utils.py
+src/python_utils_AndrewGarwood.egg-info/PKG-INFO
+src/python_utils_AndrewGarwood.egg-info/SOURCES.txt
+src/python_utils_AndrewGarwood.egg-info/dependency_links.txt
+src/python_utils_AndrewGarwood.egg-info/requires.txt
+src/python_utils_AndrewGarwood.egg-info/top_level.txt
+src/python_utils_AndrewGarwood/objects/FieldCondition.py
