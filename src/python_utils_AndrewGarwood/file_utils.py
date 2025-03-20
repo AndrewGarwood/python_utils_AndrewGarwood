@@ -60,8 +60,8 @@ def map_key_to_file_paths(
     
     Args:
         file_paths (List[str]): _description_
-        dir_delimiter (Literal['/', '\\'], optional): _description_. Defaults to '\\'.
-        key_delimiter (str, optional): _description_. Defaults to ' '.
+        dir_delimiter (Literal['/', '\\\\'], optional): _description_. Defaults to '\\\\' (escaped backslash).
+        key_delimiter (str, optional): _description_. Defaults to ' ' (single space).
 
     Returns:
         Dict[str, List[str]]: _description_
@@ -89,7 +89,7 @@ def recursively_get_files_of_type(
         exclude_keywords (List[str], optional): _description_. Defaults to ['waiver'].
 
     Returns:
-        List[str]: _description_
+        List[str]: _list of file paths that match the specified file types and do not contain any of the exclude_keywords in their names.
     """
     files_found: List[str] = []
     for root, dirs, files in os.walk(dir):

@@ -1,6 +1,5 @@
 from typing import List, Dict, Any, Literal, Tuple
 import os
-from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
 from pandas import DataFrame
@@ -10,9 +9,13 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils.dataframe import dataframe_to_rows
 from .file_utils import validate_file_extension
 
-load_dotenv()
-DEFAULT_LOG: str = os.getenv('DEFAULT_LOG_FILE')
-FIELD_UPDATE_LOG: str = os.getenv('FIELD_UPDATE_LOG')
+
+# from dotenv import load_dotenv
+# load_dotenv()
+# Set these variables in your .env file. Alternatively put them in config.py
+# Or delete them if you don't want to use them
+DEFAULT_LOG: str = 'Path/To/DefaultLog/File'# os.getenv('DEFAULT_LOG_FILE')
+FIELD_UPDATE_LOG: str = 'Path/To/FieldUpdateLog/File'# os.getenv('FIELD_UPDATE_LOG')
 
 __all__ = [
     'print_group', 'concatenate_dataframes_to_excel', 'concatenate_dataframes_to_excel_sheet', 'write_dataframes_to_excel'

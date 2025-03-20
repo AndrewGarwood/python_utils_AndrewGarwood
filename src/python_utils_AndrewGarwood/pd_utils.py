@@ -5,6 +5,7 @@ import pandas as pd
 from pandas import DataFrame, Series, Index
 from .regex_utils import extract_leaf
 from .write_utils import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
+from .config import DF_FILE_NAME, ENABLE_DETAILED_LOG, ENABLE_OVERWRITE
 
 from objects.FieldCondition import FieldCondition, FieldMap
 
@@ -12,7 +13,7 @@ from objects.FieldCondition import FieldCondition, FieldMap
 
 __all__ = [
     'has_columns', 'impose_column_order', 'map_key_to_row_indices', 'extract_duplicate_rows_from_key_map',
-    'extract_permuted_key_rows', 'custom_join', 'extract_rows_with_empty_fields', 'update_field',
+    'extract_permuted_key_rows', 'permuted_key_join', 'extract_rows_with_empty_fields', 'update_field',
     'field_contains', 'field_equals', 'field_not_equals', 'field_startswith', 'filter_by_text', 'filter_by_date_range',
     'group_and_aggregate'
 ]
@@ -23,8 +24,8 @@ def has_columns(
 ) -> bool:
     """
     Args:
-        df (DataFrame): _description_
-        cols_to_check (List[str] | str): 
+        df (DataFrame): input DataFrame
+        cols_to_check (List[str] | str): column name(s) to check for in df.columns
 
     Returns:
         bool: True if all cols_to_check are in df.columns else False
@@ -41,7 +42,7 @@ def impose_column_order(
 ) -> DataFrame:
     """
     Args:
-        df (DataFrame): _description_
+        df (DataFrame): input DataFrame
         column_order (List[str]): subset of df.columns or a permutation of df.columns
         from_start (bool, optional): if column_order is subset of df.columns, put column_order at the start. Defaults to True.
         from_end (bool, optional): if column_order is subset of df.columns, put column_order at the end. Defaults to False.
@@ -83,7 +84,7 @@ def map_key_to_row_indices(
         ValueError: if key_col is not in df.columns
 
     Returns:
-        Dict[str, List[int]]: map of keys to list of row indices; 
+        (Dict[str, List[int]]): map of keys to list of row indices; 
         multiplicity = len(Dict[key])
     """
     if not has_columns(df, key_col):
@@ -121,13 +122,13 @@ def extract_permuted_key_rows(
         key2=parentCLass2:leaf
     Args:
         df (DataFrame): _description_
-        permuted_key_col (str, optional): _description_. Defaults to 'Item'.
+        permuted_key_col (str, optional): . Defaults to 'Item'.
 
     Raises:
-        ValueError: _description_
+        ValueError: if permuted_key_col is not in df.columns
 
     Returns:
-        DataFrame: _description_
+        DataFrame: dataframe representing the Union of all rows (r1, r2, . . .) where extract_leaf(r1[permuted_key_col]) == extract_leaf(r2[permuted_key_col])
     """
     if not has_columns(df, permuted_key_col):
         raise ValueError('Invalid Key Column')
@@ -139,16 +140,14 @@ def extract_permuted_key_rows(
     duplicates_df: DataFrame = extract_duplicate_rows_from_key_map(df, key_map)
     return duplicates_df
 
-def custom_join(
+def permuted_key_join(
     base_df: DataFrame, 
     permuted_df: DataFrame, 
     base_key_col: str = 'Item Name/Number',
     base_name_col: str = 'Display Name',
-    premuted_key_col: str = 'Item',
-    premuted_name_col: str = 'Description',
+    permuted_key_col: str = 'Item',
+    permuted_name_col: str = 'Description',
     cols_to_add: List[str] = ['Account', 'Asset Account', 'COGS Account'],
-    enable_overwrite: bool = False,
-    enable_detailed_log: bool = True
 ) -> DataFrame:
     """_summary_
     Originally used in context of adding account fields to a tsv of 2 cols [Item Name/Number, Display Name]
@@ -159,18 +158,16 @@ def custom_join(
         permuted_df (DataFrame): _description_
         base_key_col (str, optional): _description_. Defaults to 'Item Name/Number'.
         base_name_col (str, optional): _description_. Defaults to 'Display Name'.
-        premuted_key_col (str, optional): _description_. Defaults to 'Item'.
-        premuted_name_col (str, optional): _description_. Defaults to 'Description'.
+        permuted_key_col (str, optional): _description_. Defaults to 'Item'.
+        permuted_name_col (str, optional): _description_. Defaults to 'Description'.
         cols_to_add (List[str], optional): _description_. Defaults to ['Account', 'Asset Account', 'COGS Account'].
-        enable_overwrite (bool, optional): _description_. Defaults to False.
-        enable_detailed_log (bool, optional): _description_. Defaults to True.
 
     Returns:
-        DataFrame: _description_
+        DataFrame: base_df with additional columns from permuted_df where the leaf key of permuted_df matches the base_df key
     """
     
     if (not has_columns(base_df, base_key_col) 
-        or not has_columns(permuted_df, [premuted_key_col]+cols_to_add)
+        or not has_columns(permuted_df, [permuted_key_col]+cols_to_add)
         ):
         return ValueError('Invalid Key Column(s)')
     for col in cols_to_add:
@@ -180,7 +177,7 @@ def custom_join(
     processed_keys: Set[str] = set()
     num_updated, num_duplicates, num_unmatched_keys = 0, 0, 0
     base_key_map: Dict[str, List[int]] = map_key_to_row_indices(base_df, base_key_col)
-    permuted_key_map: Dict[str, List[int]] = map_key_to_row_indices(permuted_df, premuted_key_col)
+    permuted_key_map: Dict[str, List[int]] = map_key_to_row_indices(permuted_df, permuted_key_col)
     for permuted_key in permuted_key_map.keys():
         permuted_index: int = permuted_key_map[permuted_key][0]
         leaf_key: str = extract_leaf(permuted_key)
@@ -194,13 +191,13 @@ def custom_join(
                 base_val: str = str(base_df.at[base_index, col])
                 ext_val: str = str(permuted_df.at[permuted_index, col])
                 if ((ext_val and base_val != ext_val) 
-                    and (enable_overwrite or not base_val)):
-                    if enable_detailed_log:
+                    and (ENABLE_OVERWRITE or not base_val)):
+                    if ENABLE_DETAILED_LOG:
                         print_group(
                             label=f'Value Update',
                             data=[
                                 f'    base_df: row={base_index}, SKU={leaf_key}, Name={base_df.at[base_index, base_name_col]}',
-                                f'extended_df: row={permuted_index}, SKU={permuted_key}, Name={permuted_df.at[permuted_index, premuted_name_col]}',  
+                                f'extended_df: row={permuted_index}, SKU={permuted_key}, Name={permuted_df.at[permuted_index, permuted_name_col]}',  
                                 f'\tOld {col}: {base_val}',
                                 f'\tNew {col}: {ext_val}',
                             ],
@@ -213,20 +210,20 @@ def custom_join(
         elif leaf_key in base_key_map.keys() and leaf_key in processed_keys:
             num_duplicates += 1
             base_index: int = base_key_map[leaf_key][0]
-            if enable_detailed_log:
+            if ENABLE_DETAILED_LOG:
                 print_group(
                     label='Duplicate Found',
                     data=[
                         f'\t Truncated SKU: {leaf_key}', 
                         f'\tTruncated Name: {base_df.loc[base_index, base_name_col]}',
                         f'\t  Extended SKU: {permuted_key}',
-                        f'\t Extended Name: {permuted_df.loc[permuted_index, premuted_name_col]}',
+                        f'\t Extended Name: {permuted_df.loc[permuted_index, permuted_name_col]}',
                     ],
                     print_to_console=False
                 )
         elif leaf_key not in base_key_map.keys():
             num_unmatched_keys += 1
-            if enable_detailed_log:
+            if ENABLE_DETAILED_LOG:
                 print_group(
                     label='Key Not Found',
                     data=[
@@ -234,7 +231,7 @@ def custom_join(
                         f'\tKey:  {leaf_key}', 
                         f'Extended:',  
                         f'\tKey:  {permuted_key}',
-                        f'\tName: {permuted_df.loc[permuted_index, premuted_name_col]}',
+                        f'\tName: {permuted_df.loc[permuted_index, permuted_name_col]}',
                     ],
                     print_to_console=False
                 )
@@ -250,8 +247,7 @@ def custom_join(
 def extract_rows_with_empty_fields(
     df: DataFrame,
     fields: List[str],
-    key_col: str = 'Item Name/Number',
-    enable_detailed_log: bool = False
+    key_col: str = 'Item Name/Number'
 ) -> DataFrame:
     """_summary_
 
@@ -259,7 +255,6 @@ def extract_rows_with_empty_fields(
         df (DataFrame): _description_
         fields (List[str]): _description_
         key_col (str, optional): _description_. Defaults to 'Item Name/Number'.
-        enable_detailed_log (bool, optional): _description_. Defaults to False.
 
     Returns:
         DataFrame: All rows with empty value for one or more fields
@@ -272,7 +267,7 @@ def extract_rows_with_empty_fields(
             [str(row[field]) for field in fields if not row[field]]
         if empty_fields:
             empty_rows.append(i)
-            if enable_detailed_log:
+            if ENABLE_DETAILED_LOG:
                 print_group(
                     label=f'Empty Field(s) Found: {len(empty_fields)}',
                     data=[
@@ -290,10 +285,7 @@ def update_field(
     update_val: str,
     conditions: List[FieldCondition],
     key_col: str = 'Item Name/Number',
-    name_col: str = 'Display Name',
-    enable_overwrite: bool = False,
-    enable_detailed_log: bool = True,
-    df_file_name: str = 'inventory_item.tsv',
+    name_col: str = 'Display Name'
 ) -> DataFrame:
     """
     modular update of field in a DataFrame based on conditions
@@ -303,12 +295,6 @@ def update_field(
         update_field (str): column in df to update
         update_val (str): if all conditions are met, update row[update_field] to update_val for row in df
         conditions (List[FieldCondition]): specify condition functions and FieldMap inputs to be met for update
-        enable_overwrite (bool, optional): overwrite rows that meet conditions already have value in update_field. 
-            Defaults to False.
-        enable_detailed_log (bool, optional): if want to write record of updates made to .output/field_update_log.txt. 
-            Defaults to True.
-        df_file_name (str, optional): Provide a file name for logging purposes. 
-            Defaults to 'inventory_item.tsv'.
 
     Returns:
         DataFrame: updated df
@@ -326,9 +312,7 @@ def update_field(
                         value='Child Class Keyword'
                         )
                     )
-                ], 
-                enable_overwrite=True,
-                df_file_name='inventory_item.tsv'
+                ]
             )
     """
     cols_to_check: List[str] = \
@@ -342,13 +326,13 @@ def update_field(
             if c.check_row(row):
                 update_dict[(update_field, update_val)] = \
                     update_dict.get((update_field, update_val), set())
-                if enable_overwrite or not row[update_field]:
+                if ENABLE_OVERWRITE or not row[update_field]:
                     update_dict[(update_field, update_val)].add(i)
     for (field, val), indices in update_dict.items():
         indices = list(indices)
-        if enable_detailed_log:
+        if ENABLE_DETAILED_LOG:
             print_group(
-                label=f'({df_file_name}) Updating {field} to {val}: count={len(indices)}', 
+                label=f'{"(" + DF_FILE_NAME + ") " if DF_FILE_NAME else ""}Updating {field} to {val}: count={len(indices)}', 
                 data=[
                     f'row={j}, sku={df.at[j, key_col]}, name={df.at[j, name_col]}'
                     for j in indices
@@ -459,10 +443,10 @@ def filter_by_date_range(
         end_date (str): format: 'mm/dd/yyyy'
 
     Raises:
-        ValueError: _description_
+        ValueError: if date_col is not in df.columns or if date format is invalid
 
     Returns:
-        DataFrame: _description_
+        DataFrame: filtered DataFrame with rows where date_col is between start_date and end_date (inclusive)
     """
     if not has_columns(df, date_col):
         raise ValueError('Invalid Column Name')
@@ -479,6 +463,19 @@ def group_and_aggregate(
     group_by: List[str] | Tuple[str] | str,
     agg_dict: Dict[str, Literal['sum', 'mean', 'count']]={'Amount': 'sum', 'Qty': 'sum'}
 ) -> DataFrame:
+    """wrapper for df.groupby().aggregate()
+
+    Args:
+        df (DataFrame): _description_
+        group_by (List[str] | Tuple[str] | str): _description_
+        agg_dict (_type_, optional): _description_. Defaults to {'Amount': 'sum', 'Qty': 'sum'}.
+
+    Raises:
+        ValueError: if group_by or agg_dict contains invalid column name(s)
+
+    Returns:
+        DataFrame: grouped and aggregated DataFrame
+    """
     if isinstance(group_by, str):
         group_by = [group_by]
     elif isinstance(group_by, tuple):

@@ -8,9 +8,10 @@ class FieldMap:
     FieldMap is a dataclass that represents a field (i.e. column) 
     and its value(s) to be used in a FieldCondition
     
-    field: str
-    value: Tuple[str] | List[str] | str
-    ignore_case: bool = False
+    Args:
+        field (str): The name of the field (i.e. column) in the DataFrame.
+        value (Tuple[str] | List[str] | str): The value(s) to be checked against the field.
+        ignore_case (bool): Default False
     """
     field: str
     value: Tuple[str] | List[str] | str
@@ -30,11 +31,12 @@ class FieldCondition:
     FieldMap objects, and a boolean indicating whether all or any of the
     criteria must be met.
     
-    condition_fn: Callable[..., bool]
-    fn_criteria: List[FieldMap]
-    all: bool = True
-    any: bool = False
-    none: bool = False
+    Args:
+        condition_fn (Callable[..., bool]):
+        fn_criteria (List[FieldMap]):
+        all\_ (bool): Default True, if True all criteria must be met
+        any\_ (bool): Default False
+        none (bool): Default False
     """
     condition_fn: Callable[..., bool]
     fn_criteria: List[FieldMap]
