@@ -23,6 +23,7 @@ def has_columns(
     cols_to_check: List[str] | str
 ) -> bool:
     """
+    TODO: change back to manually looping through cols_to_check instead of using all() so can identify which column is missing (if any)
     Args:
         df (DataFrame): input DataFrame
         cols_to_check (List[str] | str): column name(s) to check for in df.columns
@@ -77,7 +78,7 @@ def map_key_to_row_indices(
             Defaults to 'Item Name/Number'.
         truncate (bool, optional): if values in key_col have leading characters/terms 
             that can be isolated by a delimiter using extract_leaf(key). 
-            For QuickBooks, it's' the ':' character. 
+            For QuickBooks, it's the ':' (colon) character. 
             Defaults to False.
 
     Raises:
@@ -128,7 +129,7 @@ def extract_permuted_key_rows(
         ValueError: if permuted_key_col is not in df.columns
 
     Returns:
-        DataFrame: dataframe representing the Union of all rows (r1, r2, . . .) where extract_leaf(r1[permuted_key_col]) == extract_leaf(r2[permuted_key_col])
+        DataFrame: dataframe representing the Union of all rows (r_i, r_j) where extract_leaf(r_i[permuted_key_col]) == extract_leaf(r_j[permuted_key_col])
     """
     if not has_columns(df, permuted_key_col):
         raise ValueError('Invalid Key Column')
@@ -189,8 +190,8 @@ def permuted_key_join(
             base_index: int = base_key_map[leaf_key][0]
             for col in cols_to_add:
                 base_val: str = str(base_df.at[base_index, col])
-                ext_val: str = str(permuted_df.at[permuted_index, col])
-                if ((ext_val and base_val != ext_val) 
+                permuted_val: str = str(permuted_df.at[permuted_index, col])
+                if ((permuted_val and base_val != permuted_val) 
                     and (ENABLE_OVERWRITE or not base_val)):
                     if ENABLE_DETAILED_LOG:
                         print_group(
@@ -199,12 +200,12 @@ def permuted_key_join(
                                 f'    base_df: row={base_index}, SKU={leaf_key}, Name={base_df.at[base_index, base_name_col]}',
                                 f'extended_df: row={permuted_index}, SKU={permuted_key}, Name={permuted_df.at[permuted_index, permuted_name_col]}',  
                                 f'\tOld {col}: {base_val}',
-                                f'\tNew {col}: {ext_val}',
+                                f'\tNew {col}: {permuted_val}',
                             ],
                             print_to_console=False
                         )
                     # base_df.at[base_index, col] = ext_val "You should never modify something you are iterating over"
-                    update_dict[(base_index, col)] = ext_val
+                    update_dict[(base_index, col)] = permuted_val
                     num_updated += 1  
             processed_keys.add(leaf_key)  
         elif leaf_key in base_key_map.keys() and leaf_key in processed_keys:
@@ -247,19 +248,16 @@ def permuted_key_join(
 def extract_rows_with_empty_fields(
     df: DataFrame,
     fields: List[str],
-    key_col: str = 'Item Name/Number'
 ) -> DataFrame:
-    """_summary_
-
+    """
     Args:
-        df (DataFrame): _description_
-        fields (List[str]): _description_
-        key_col (str, optional): _description_. Defaults to 'Item Name/Number'.
+        df (DataFrame): Input DataFrame
+        fields (List[str]): if row[field] is empty for any field in fields, add row to return DataFrame
 
     Returns:
         DataFrame: All rows with empty value for one or more fields
     """
-    if not has_columns(df, [key_col]+fields):
+    if not has_columns(df, fields):
         return ValueError('Invalid Column Name')
     empty_rows: List[int] = []
     for i, row in df.iterrows():
@@ -267,16 +265,6 @@ def extract_rows_with_empty_fields(
             [str(row[field]) for field in fields if not row[field]]
         if empty_fields:
             empty_rows.append(i)
-            if ENABLE_DETAILED_LOG:
-                print_group(
-                    label=f'Empty Field(s) Found: {len(empty_fields)}',
-                    data=[
-                        f'Row: {i}',
-                        f'Key: {row[key_col]}',
-                        f'Empty Field(s): {empty_fields}'
-                    ],
-                    print_to_console=False, log_path=DEFAULT_LOG
-                )
     return df.loc[empty_rows]
 
 def update_field(
@@ -300,20 +288,19 @@ def update_field(
         DataFrame: updated df
     
     Example:
+        name_contains_child_class_keyword = FieldCondition(
+            condition_fn=field_contains,
+            fn_criteria=FieldMap(
+                field='Display Name',
+                value='Child Class Keyword'
+            )
+        )    
         df = update_field(
             df=df,
             update_field='Class', 
             update_val='Parent Class : Child Class',
-            conditions=[
-                FieldCondition(
-                    condition_fn=field_contains, 
-                    fn_criteria=FieldMap(
-                        field='Display Name', 
-                        value='Child Class Keyword'
-                        )
-                    )
-                ]
-            )
+            conditions=[name_contains_child_class_keyword]
+        )
     """
     cols_to_check: List[str] = \
         [crit.field for c in conditions for crit in c.fn_criteria]\
@@ -332,9 +319,12 @@ def update_field(
         indices = list(indices)
         if ENABLE_DETAILED_LOG:
             print_group(
-                label=f'{"(" + DF_FILE_NAME + ") " if DF_FILE_NAME else ""}Updating {field} to {val}: count={len(indices)}', 
+                label=f'{"(" + DF_FILE_NAME + ") " if DF_FILE_NAME else ""}Updating {field} to \"{val}\", count={len(indices)}', 
                 data=[
-                    f'row={j}, sku={df.at[j, key_col]}, name={df.at[j, name_col]}'
+                    f'row={j}'.ljust(10)
+                    + f'sku={df.at[j, 'Item Name/Number']}'.ljust(20)
+                    + f'name={df.at[j, 'Display Name']}'.ljust(90)
+                    + f'(prev) {field}={df.at[j, field]}'
                     for j in indices
                     ],
                 print_to_console=False, 
@@ -463,8 +453,10 @@ def group_and_aggregate(
     group_by: List[str] | Tuple[str] | str,
     agg_dict: Dict[str, Literal['sum', 'mean', 'count']]={'Amount': 'sum', 'Qty': 'sum'}
 ) -> DataFrame:
-    """wrapper for df.groupby().aggregate()
-
+    """
+    Wrapper for df.groupby().aggregate()
+    TODO: add more aggregation functions to agg_dict's values
+    
     Args:
         df (DataFrame): _description_
         group_by (List[str] | Tuple[str] | str): _description_

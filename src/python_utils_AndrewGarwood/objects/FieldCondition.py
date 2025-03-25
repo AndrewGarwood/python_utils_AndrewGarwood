@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from typing import Callable, List, Tuple, Dict
 from pandas import Series
 
+# TODO: maybe put the condition functions from pd_utils.py here
+
 @dataclass
 class FieldMap:
     """
@@ -34,8 +36,8 @@ class FieldCondition:
     Args:
         condition_fn (Callable[..., bool]):
         fn_criteria (List[FieldMap]):
-        all\_ (bool): Default True, if True all criteria must be met
-        any\_ (bool): Default False
+        all\\_ (bool): Default True, if True all criteria must be met
+        any\\_ (bool): Default False
         none (bool): Default False
     """
     condition_fn: Callable[..., bool]

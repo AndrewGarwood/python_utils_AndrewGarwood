@@ -6,8 +6,8 @@ __all__ = [
     'extract_leaf', 'ahead_is', 'ahead_not', 'behind_is', 'behind_not',
     'equivalent_alphanumeric', 'equivalent_alphanumeric_split_set', 'extract_unit_measurements',
     'extract_dimensions', 'extract_name_from_address', 'extract_phone', 'extract_zip', 'extract_state',
-    'extract_city', 'STATE_ABBREVIATIONS', 'STATE_NAMES', 'street_suffix_pattern', 'street_suffix_list',
-    'suite_pattern', 'name_suffixes', 'number_pattern', 'units', 'dimension_symbol_pattern'
+    'extract_city', 'STATE_ABBREVIATIONS', 'STATE_NAMES', 'STREET_SUFFIX_PATTERN', 'street_suffix_list',
+    'suite_pattern', 'NAME_SUFFIX_PATTERN', 'NUMBER_PATTERN', 'UNITS', 'DIMENSION_SYMBOL_PATTERN'
 ]
 
 def extract_leaf(s: str, delimiter: str = ':') -> str:
@@ -95,10 +95,10 @@ def extract_unit_measurements(s: str) -> Tuple[str, List[str]]:
         return []
     # modified_s: str = s
     measurements: List[str] = []
-    for unit in units:
+    for unit in UNITS:
         if '[' in s or ']' in s:  # already extracted measurements
             break
-        unit_measurement_pattern: str = rf'{behind_not(dimension_symbol_pattern)}{number_pattern} ?{unit}{ahead_not(dimension_symbol_pattern)}'
+        unit_measurement_pattern: str = rf'{behind_not(DIMENSION_SYMBOL_PATTERN)}{NUMBER_PATTERN} ?{unit}{ahead_not(DIMENSION_SYMBOL_PATTERN)}'
         matches: List[str] = re.findall(unit_measurement_pattern, s)
         s = re.sub(unit_measurement_pattern, '', s).replace('(', '').replace(')', '').strip()
         for match in matches:
@@ -113,8 +113,8 @@ def extract_dimensions(s: str) -> List[str]:
     if not s or s in ['nan', '']:
         return []
     dimension_measurements: List[str] = []
-    for unit in units:
-        matches: List[str] = re.findall(rf'{number_pattern}{unit} ?{dimension_symbol_pattern} ?{number_pattern}{unit}', s)
+    for unit in UNITS:
+        matches: List[str] = re.findall(rf'{NUMBER_PATTERN}{unit} ?{DIMENSION_SYMBOL_PATTERN} ?{NUMBER_PATTERN}{unit}', s)
         dimension_measurements.extend(matches)
     return dimension_measurements
 
@@ -163,7 +163,7 @@ def split_name(fullname: str):
     # 1: Remove "Attn: "
     # 2: Store then remove titles
     # 3: Separate into First and Last
-    suffix_pattern = re.compile(r'(,?\s*(' + name_suffixes + r'))$', re.IGNORECASE)
+    suffix_pattern = re.compile(r'(,?\s*(' + NAME_SUFFIX_PATTERN + r'))$', re.IGNORECASE)
     prefix_pattern = re.compile(r'\bDr\.*\s+', re.IGNORECASE)
     if not fullname or not isinstance(fullname, str):
         return Series(['', '', ''])
@@ -189,12 +189,12 @@ def split_name(fullname: str):
     return Series([first, last, job_title])
 
 
-country_patterns = re.compile(r'\b(United States|USA)\b', re.IGNORECASE)
+COUNTRY_PATTERN = re.compile(r'\b(United States|USA)\b', re.IGNORECASE)
 # TODO: make separate method to return address as PD series; return tuple in original one
 def parse_address(address: str):
     if not isinstance(address, str):
         return Series(['', '', '', '', ''])
-    address = country_patterns.sub('', address)
+    address = COUNTRY_PATTERN.sub('', address)
     address, phone_number = extract_phone(text=address)
     address, zip_code = extract_zip(text=address)
     address, state = extract_state(text=address)
@@ -204,40 +204,25 @@ def parse_address(address: str):
 def extract_phone(text: str) -> Tuple[str, str | None]:
     if not isinstance(text, str):
         return text, ''
-    phone_pattern = re.compile(
-        r'''
-        (\+?1[-.\s]?|\()?  # Optional country code (+1) with optional space, dash, or dot, or opening parenthesis
-        (\d{3})[-.\s)]*    # Area code with optional closing parenthesis, space, dash, or dot
-        (\d{3})[-.\s]*     # First three digits with optional space, dash, or dot
-        (\d{4})            # Last four digits
-        ''', 
-        re.VERBOSE
-    )
-    phone_match = phone_pattern.search(text)
+
+    phone_match = PHONE_NUMBER_PATTERN.search(text)
     # Extract the phone number if present and format it as 999-999-9999
     if phone_match:
         phone_number = f"{phone_match.group(2)}-{phone_match.group(3)}-{phone_match.group(4)}"
     else:
         phone_number = None
-    text = phone_pattern.sub('', text).strip()
+    text = PHONE_NUMBER_PATTERN.sub('', text).strip()
     return text, phone_number
 
 def extract_zip(text: str)  -> Tuple[str, str | None]:
-    zip_code_pattern = re.compile(
-        r'(\d{5})(-\d{4})?\b'  # Match 5 digits optionally followed by a hyphen and 4 more digits
-    )
-    zip_code_match = zip_code_pattern.search(text)
+    zip_code_match = ZIP_CODE_PATTERN.search(text)
     zip_code = zip_code_match.group() if zip_code_match else None
-    text = zip_code_pattern.sub('', text).strip()
+    text = ZIP_CODE_PATTERN.sub('', text).strip()
     return text, zip_code    
 
 def extract_state(text: str) -> Tuple[str, str | None]:
-    states_pattern = re.compile(
-        r'\b(' + '|'.join(STATE_ABBREVIATIONS + STATE_NAMES) + r')\b',
-        re.IGNORECASE
-    )
     # Find all matches of state abbreviations/full names
-    matches = list(states_pattern.finditer(text))
+    matches = list(STATE_PATTERN.finditer(text))
     # Determine the last match (rightmost state) //recall case when street_suffix = Ct
     last_match = matches[-1] if matches else None
     # Extract state and update text
@@ -259,7 +244,7 @@ def extract_city(text: str, cities: Optional[List[str]] = None) -> Tuple[str, Op
         city = text[city_start_idx:].strip('., ').split(',')[0].strip()
     else:
         # If no suite/unit pattern, look for a street suffix
-        street_match = re.search(street_suffix_pattern, text)
+        street_match = re.search(STREET_SUFFIX_PATTERN, text)
         if street_match:
             street_end_idx = street_match.end()
             # Assume city follows immediately after the street suffix
@@ -284,6 +269,30 @@ def extract_city(text: str, cities: Optional[List[str]] = None) -> Tuple[str, Op
         text = re.sub(re.escape(city), '', text).strip(', ')
     return text, city
 
+
+PHONE_NUMBER_PATTERN = re.compile(
+    r'''
+    (\+?1[-.\s]?|\()?  # Optional country code (+1) with optional space, dash, or dot, or opening parenthesis
+    (\d{3})[-.\s)]*    # Area code with optional closing parenthesis, space, dash, or dot
+    (\d{3})[-.\s]*     # First three digits with optional space, dash, or dot
+    (\d{4})            # Last four digits
+    ''', 
+    re.VERBOSE
+)
+ZIP_CODE_PATTERN = re.compile(
+    r'(\d{5})(-\d{4})?\b'  # Match 5 digits optionally followed by a hyphen and 4 more digits
+)
+STREET_SUFFIX_PATTERN = r'\b(?:Rd|Road|St|Street|Ave|Avenue|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Pl|Place|Sq|Square|Terrace|Hwy|Pkwy|Parkway|Cir|Circle|Way|Ste|Suite|(PO Box[\s#]*\d+))\.*\b'
+street_suffix_list = ['Rd', 'Road', 'St', 'Street', 'Ave', 'Avenue', 'Blvd', 'Boulevard', 'Ln', 'Lane', 'Dr', 'Drive', 'Ct', 'Court', 'Pl', 'Place', 'Sq', 'Square', 'Terrace', 'Hwy', 'Pkwy', 'Parkway', 'Cir', 'Circle', 'Way', 'Ste', 'Suite', 'PO Box']  #'|'.join
+suite_pattern = r'(Suite|Ste|Unit|#)\s*[A-Z\d]+'
+
+UNITS: List[str] = [
+    'units', 'oz', 'g', 'ml', 'fl oz', 'lb', 'kg', 'gal', 'cc'
+]
+NUMBER_PATTERN: str = r'\d+\.?\d*'
+DIMENSION_SYMBOL_PATTERN: str = r'[xX/]'
+NAME_SUFFIX_PATTERN = r'MSPA|BSN|FNP-C|LME|DOO|PA-C|MSN-RN|RN|NP|CRNA|FNP|PA|NMD|MD|DO|LE|CMA|OM'
+
 STATE_ABBREVIATIONS: List[str] = [
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
     "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
@@ -299,13 +308,22 @@ STATE_NAMES: List[str] = [
     "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
     "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
 ]
-street_suffix_pattern = r'\b(?:Rd|Road|St|Street|Ave|Avenue|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Pl|Place|Sq|Square|Terrace|Hwy|Pkwy|Parkway|Cir|Circle|Way|Ste|Suite|(PO Box[\s#]*\d+))\.*\b'
-street_suffix_list = ['Rd', 'Road', 'St', 'Street', 'Ave', 'Avenue', 'Blvd', 'Boulevard', 'Ln', 'Lane', 'Dr', 'Drive', 'Ct', 'Court', 'Pl', 'Place', 'Sq', 'Square', 'Terrace', 'Hwy', 'Pkwy', 'Parkway', 'Cir', 'Circle', 'Way', 'Ste', 'Suite', 'PO Box']  #'|'.join
-suite_pattern = r'(Suite|Ste|Unit|#)\s*[A-Z\d]+'
 
-units: List[str] = [
-    'units', 'oz', 'g', 'ml', 'fl oz', 'lb', 'kg', 'gal', 'cc'
-]
-number_pattern: str = r'\d+\.?\d*'
-dimension_symbol_pattern: str = r'[xX/]'
-name_suffixes = r'MSPA|BSN|FNP-C|LME|DOO|PA-C|MSN-RN|RN|NP|CRNA|FNP|PA|NMD|MD|DO|LE|CMA|OM'
+STATE_PATTERN = re.compile(
+    r'\b(' + '|'.join(STATE_ABBREVIATIONS + STATE_NAMES) + r')\b',
+    re.IGNORECASE
+)
+# (from ~\Python\Python313\Lib\re\__init__.py) 
+# class RegexFlag:
+#     NOFLAG = 0
+#     ASCII = A = _compiler.SRE_FLAG_ASCII # assume ascii "locale"
+#     IGNORECASE = I = _compiler.SRE_FLAG_IGNORECASE # ignore case
+#     LOCALE = L = _compiler.SRE_FLAG_LOCALE # assume current 8-bit locale
+#     UNICODE = U = _compiler.SRE_FLAG_UNICODE # assume unicode "locale"
+#     MULTILINE = M = _compiler.SRE_FLAG_MULTILINE # make anchors look for newline
+#     DOTALL = S = _compiler.SRE_FLAG_DOTALL # make dot match newline
+#     VERBOSE = X = _compiler.SRE_FLAG_VERBOSE # ignore whitespace and comments
+#     # sre extensions (experimental, don't rely on these)
+#     DEBUG = _compiler.SRE_FLAG_DEBUG # dump pattern after compilation
+#     __str__ = object.__str__
+#     _numeric_repr_ = hex

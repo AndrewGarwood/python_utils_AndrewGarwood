@@ -22,8 +22,8 @@ from .file_utils import validate_file_extension, get_subdirectories, recursively
 from .regex_utils import ahead_is, ahead_not, behind_is, behind_not, \
     equivalent_alphanumeric, equivalent_alphanumeric_split_set, extract_leaf, extract_dimensions, \
     extract_unit_measurements, extract_city, extract_state, extract_zip, extract_phone, extract_name_from_address, \
-    STATE_ABBREVIATIONS, STATE_NAMES, street_suffix_pattern, street_suffix_list, suite_pattern, name_suffixes,\
-    number_pattern, units, dimension_symbol_pattern
+    STATE_ABBREVIATIONS, STATE_NAMES, STREET_SUFFIX_PATTERN, street_suffix_list, suite_pattern, NAME_SUFFIX_PATTERN,\
+    NUMBER_PATTERN, UNITS, DIMENSION_SYMBOL_PATTERN
 
 from .write_utils import print_group, concatenate_dataframes_to_excel, concatenate_dataframes_to_excel_sheet, write_dataframes_to_excel
 
@@ -47,8 +47,8 @@ __all__ = [
     
     'ahead_is', 'ahead_not', 'behind_is', 'behind_not', 'equivalent_alphanumeric', 'equivalent_alphanumeric_split_set',
     'extract_leaf', 'extract_dimensions', 'extract_unit_measurements', 'extract_city', 'extract_state', 'extract_zip',
-    'extract_phone', 'extract_name_from_address', 'STATE_ABBREVIATIONS', 'STATE_NAMES', 'street_suffix_pattern',
-    'street_suffix_list', 'suite_pattern', 'name_suffixes', 'number_pattern', 'units', 'dimension_symbol_pattern',
+    'extract_phone', 'extract_name_from_address', 'STATE_ABBREVIATIONS', 'STATE_NAMES', 'STREET_SUFFIX_PATTERN',
+    'street_suffix_list', 'suite_pattern', 'NAME_SUFFIX_PATTERN', 'NUMBER_PATTERN', 'UNITS', 'DIMENSION_SYMBOL_PATTERN',
     
     'print_group', 'concatenate_dataframes_to_excel', 'concatenate_dataframes_to_excel_sheet', 'write_dataframes_to_excel'
 ]
