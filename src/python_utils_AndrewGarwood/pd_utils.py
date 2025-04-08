@@ -272,8 +272,6 @@ def update_field(
     update_field: str,
     update_val: str,
     conditions: List[FieldCondition],
-    key_col: str = 'Item Name/Number',
-    name_col: str = 'Display Name'
 ) -> DataFrame:
     """
     modular update of field in a DataFrame based on conditions
@@ -304,84 +302,70 @@ def update_field(
     """
     cols_to_check: List[str] = \
         [crit.field for c in conditions for crit in c.fn_criteria]\
-        +[update_field]+[key_col, name_col]
+        +[update_field]
     if not has_columns(df, cols_to_check):
         return ValueError('Invalid Column(s)')
     update_dict: Dict[Tuple[str, str], Set[int]] = {}
     for i, row in df.iterrows():
-        for c in conditions:
-            if c.check_row(row):
-                update_dict[(update_field, update_val)] = \
-                    update_dict.get((update_field, update_val), set())
-                if ENABLE_OVERWRITE or not row[update_field]:
-                    update_dict[(update_field, update_val)].add(i)
-    for (field, val), indices in update_dict.items():
-        indices = list(indices)
-        if ENABLE_DETAILED_LOG:
-            print_group(
-                label=f'{"(" + DF_FILE_NAME + ") " if DF_FILE_NAME else ""}Updating {field} to \"{val}\", count={len(indices)}', 
-                data=[
-                    f'row={j}'.ljust(10)
-                    + f'sku={df.at[j, 'Item Name/Number']}'.ljust(20)
-                    + f'name={df.at[j, 'Display Name']}'.ljust(90)
-                    + f'(prev) {field}={df.at[j, field]}'
-                    for j in indices
-                    ],
-                print_to_console=False, 
-                log_path=FIELD_UPDATE_LOG
-                )
-        df.loc[indices, field] = val
+        if all([c.check_row(row) for c in conditions]):
+            update_dict[(update_field, update_val)] = \
+                update_dict.get((update_field, update_val), set())
+            if ENABLE_OVERWRITE or not row[update_field]:
+                update_dict[(update_field, update_val)].add(i)
+    df = apply_update_dict(df=df, update_dict=update_dict)
     return df
 
-def field_equals(
-    row: Series, 
-    case_sensitive: bool, 
-    target_field: str, 
-    *target: str
-) -> bool:
-    target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
-    field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if case_sensitive:
-        field_val = field_val.lower()
-        target = [t.lower() for t in target]
-    return any([t == field_val for t in target]) \
-        if target and field_val else False
 
-def field_not_equals(
-    row: Series, 
-    case_insensitive: bool, 
-    target_field: str, 
-    *target: str
-) -> bool:
-    return not field_equals(row, case_insensitive, target_field, *target)
+def apply_update_dict(
+    df: DataFrame,
+    update_dict: Dict[Tuple[int, str|int], str],
+    df_name: str = 'df'
+) -> DataFrame:
+    """
+    Apply a dictionary of updates to a DataFrame. The keys of the dictionary are tuples
+    containing the row index and column name, and the values are the new values to be set at df[row_index, column_name].
+    Args:
+        df (DataFrame): DataFrame to update
+        update_dict (Dict[Tuple[int, str|int], str]): dictionary of updates to apply to df
+        df_name (str, optional): name of the DataFrame. Defaults to 'df'.
+    Raises:
+        ValueError: if the column names in update_dict are not in df.columns
+    Returns:
+        DataFrame: updated DataFrame    
+    """
+    cols_to_check: List = list(set([
+        tup_key[1] for tup_key in update_dict.keys() 
+        if isinstance(tup_key[1], str)
+        ]))
+    if not has_columns(df, cols_to_check):
+        raise ValueError('Invalid Column Name(s) in update_dict keys')
+    if ENABLE_DETAILED_LOG:
+        print_group(
+            label=f'Begin Update on df={df_name}, cols={cols_to_check}',
+            print_to_console=False, 
+            log_path=FIELD_UPDATE_LOG
+        )
+    for (row_idx, col_name), value in update_dict.items():
+        if ENABLE_DETAILED_LOG:
+            print_group(
+                label=f'apply_update_dict(df={df_name}, dict) value update',
+                data=[
+                    'Old: ' + f'df.at[{row_idx}, {col_name}] = \"{df.at[row_idx, col_name]}\"',
+                    'New: ' + f'df.at[{row_idx}, {col_name}] = \"{value}\"'
+                    ],
+                indent=1,
+                print_to_console=False, 
+                log_path=FIELD_UPDATE_LOG
+            )
+        df.at[row_idx, col_name] = value
+    if ENABLE_DETAILED_LOG:
+        print_group(
+            label=f'End Update on df={df_name}, num_updates={len(update_dict)}',
+            print_to_console=False, 
+            log_path=FIELD_UPDATE_LOG
+        )
+    return df
 
-def field_startswith(
-    row: Series, 
-    case_insensitive: bool, 
-    target_field: str, 
-    *target: str
-) -> bool:
-    target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
-    field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if case_insensitive:
-        field_val = field_val.lower()
-        target = [p.lower() for p in target]
-    return field_val.startswith(target) \
-        if target and field_val else False
-
-def field_contains(
-    row: Series, 
-    case_insensitive: bool, 
-    target_field: str, 
-    *target: str
-) -> bool:
-    target: Tuple[str] = tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))  # temporary solution. if target is a 2D tuple, make it a 1D tuple
-    field_val: str = str(row[target_field]) if target_field in row.index else ''
-    if case_insensitive:
-        field_val = field_val.lower()
-        target = [t.lower() for t in target]
-    return any([t in field_val for t in target]) \
-        if target and field_val else False
 
 def filter_by_text(
     df: DataFrame, 

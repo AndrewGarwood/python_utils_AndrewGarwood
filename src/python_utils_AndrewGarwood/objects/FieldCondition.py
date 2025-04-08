@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from typing import Callable, List, Tuple, Dict
 from pandas import Series
 
-# TODO: maybe put the condition functions from pd_utils.py here
-
 @dataclass
 class FieldMap:
     """
@@ -16,7 +14,7 @@ class FieldMap:
         ignore_case (bool): Default False
     """
     field: str
-    value: Tuple[str] | List[str] | str
+    value: Tuple[str] | List[str] | str = ''
     ignore_case: bool = False
     
     def __post_init__(self):
@@ -83,3 +81,91 @@ class FieldCondition:
                 ])
         else:
             raise ValueError('FieldCondition must require all, any, or none criteria')
+        
+
+def field_equals(
+    row: Series, 
+    case_sensitive: bool, 
+    target_field: str, 
+    *target: str
+) -> bool:
+    target: Tuple[str] = flatten_to_tuple(target)
+    field_val: str = str(row[target_field]) if target_field in row.index else ''
+    if case_sensitive:
+        field_val = field_val.lower()
+        target = [t.lower() for t in target]
+    return any([t == field_val for t in target]) \
+        if target and field_val else False
+
+def field_not_equals(
+    row: Series, 
+    case_insensitive: bool, 
+    target_field: str, 
+    *target: str
+) -> bool:
+    return not field_equals(row, case_insensitive, target_field, *target)
+
+def field_startswith(
+    row: Series, 
+    case_insensitive: bool, 
+    target_field: str, 
+    *target: str
+) -> bool:
+    target: Tuple[str] = flatten_to_tuple(target)
+    field_val: str = str(row[target_field]) if target_field in row.index else ''
+    if case_insensitive:
+        field_val = field_val.lower()
+        target = [p.lower() for p in target]
+    return field_val.startswith(target) \
+        if target and field_val else False
+
+def field_endswith(
+    row: Series, 
+    ignore_case: bool, 
+    target_field: str, 
+    *target: str
+) -> bool:
+    target: Tuple[str] = flatten_to_tuple(target)
+    field_val: str = str(row[target_field]) if target_field in row.index else ''
+    if ignore_case:
+        field_val = field_val.lower()
+        target = tuple([t.lower() for t in target])
+    return field_val.endswith(target) \
+        if target and field_val else False
+
+def field_contains(
+    row: Series, 
+    case_insensitive: bool, 
+    target_field: str, 
+    *target: str
+) -> bool:
+    target: Tuple[str] = flatten_to_tuple(target)
+    field_val: str = str(row[target_field]) if target_field in row.index else ''
+    if case_insensitive:
+        field_val = field_val.lower()
+        target = [t.lower() for t in target]
+    return any([t in field_val for t in target]) \
+        if target and field_val else False
+
+def field_is_empty(
+    row: Series, 
+    ignore_case: bool,
+    target_field: str,
+    *target: str
+) -> bool:
+    field_val: str = str(row[target_field]).lower().replace('nan', '').replace('null', '') if target_field in row.index else ''
+    return field_val == '' if target_field in row.index else False
+
+
+def flatten_to_tuple(
+    target: str | Tuple[str] | List[str] | List[Tuple[str]],
+) -> Tuple[str]:
+    """
+    flatten_to_tuple takes a string, tuple, or list of strings and returns a tuple of strings
+    """
+    if isinstance(target, str):
+        return (target,)
+    elif isinstance(target, list) or isinstance(target, tuple):
+        return tuple(t for sublist in target for t in (sublist if isinstance(sublist, tuple) else (sublist,)))
+    else:
+        raise ValueError('target must be a string, tuple, or list of strings')

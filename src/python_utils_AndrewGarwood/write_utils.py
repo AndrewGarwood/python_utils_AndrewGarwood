@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Literal, Tuple
 import os
+import json
 from datetime import datetime
 import pandas as pd
 from pandas import DataFrame
@@ -153,7 +154,6 @@ def write_dataframes_to_excel(
         sheet_names = workbook.sheetnames
 
     with pd.ExcelWriter(output_path, engine='openpyxl', mode='a') as writer:
-        # writer.book = workbook
         for df_name, df in df_dict.items():
             # Ensure unique sheet names
             original_sheet_name = df_name
@@ -166,3 +166,16 @@ def write_dataframes_to_excel(
                 merge_cells=False, index=False
             )
             sheet_names.append(df_name)
+
+
+def write_list_to_txt_file(file_path: str, data: List[str]) -> None:
+    file_path = validate_file_extension(file_path, '.txt')
+    with open(file_path, 'w') as file:
+        for item in data:
+            file.write(f"{item}\n")
+
+def write_list_to_json(file_path: str, list_key: str, data: List[Any]) -> None:
+    file_path = validate_file_extension(file_path, '.json')
+    data = sorted(data, key=lambda x: str(x))
+    with open(file_path, 'w') as file:
+        json.dump({list_key:data}, file, indent=4)
