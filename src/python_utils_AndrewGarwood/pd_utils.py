@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 from pandas import DataFrame, Series, Index
 from .regex_utils import extract_leaf
-from .write_utils import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
+from .io_utils import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
 from .config import DF_FILE_NAME, ENABLE_DETAILED_LOG, ENABLE_OVERWRITE
 
 from objects.FieldCondition import FieldCondition, FieldMap
@@ -14,26 +14,41 @@ from objects.FieldCondition import FieldCondition, FieldMap
 __all__ = [
     'has_columns', 'impose_column_order', 'map_key_to_row_indices', 'extract_duplicate_rows_from_key_map',
     'extract_permuted_key_rows', 'permuted_key_join', 'extract_rows_with_empty_fields', 'update_field',
-    'field_contains', 'field_equals', 'field_not_equals', 'field_startswith', 'filter_by_text', 'filter_by_date_range',
-    'group_and_aggregate'
+    'filter_by_text', 'filter_by_date_range', 'group_and_aggregate', 'apply_update_dict',
 ]
 
 def has_columns(
     df: DataFrame, 
-    cols_to_check: List[str] | str
+    cols_to_check: List[str] | Tuple[str] | str
 ) -> bool:
     """
-    TODO: change back to manually looping through cols_to_check instead of using all() so can identify which column is missing (if any)
+
     Args:
-        df (DataFrame): input DataFrame
-        cols_to_check (List[str] | str): column name(s) to check for in df.columns
+        df (DataFrame): _description_
+        cols_to_check (List[str] | str): 
 
     Returns:
         bool: True if all cols_to_check are in df.columns else False
     """
     if isinstance(cols_to_check, str):
         cols_to_check = [cols_to_check]
-    return all(col in df.columns for col in cols_to_check) if df is not None else False
+    elif isinstance(cols_to_check, tuple):
+        cols_to_check = list(cols_to_check)
+    # return all(col in df.columns for col in cols_to_check)
+    for col in cols_to_check:
+        if col not in df.columns:
+            print(f'Column \"{col}\" not in DataFrame')
+            return False
+    return True
+
+def has_unique_keys(
+    df: DataFrame,
+    key_col: str | int,
+) -> bool:
+    if not has_columns(df, key_col):
+        raise ValueError('Invalid Key Column')
+    return len(df[key_col].unique()) == len(df[key_col])
+    
 
 def impose_column_order(
     df: DataFrame, 
@@ -236,8 +251,11 @@ def permuted_key_join(
                     ],
                     print_to_console=False
                 )
-    for (index, col), val in update_dict.items():
-        base_df.at[index, col] = val
+    base_df = apply_update_dict(
+        df=base_df,
+        update_dict=update_dict,
+        df_name=DF_FILE_NAME
+    )
     print(
         f'Number of Updates:        {num_updated}\n'
         f'Number of Duplicates:     {num_duplicates}\n'
@@ -312,10 +330,15 @@ def update_field(
                 update_dict.get((update_field, update_val), set())
             if ENABLE_OVERWRITE or not row[update_field]:
                 update_dict[(update_field, update_val)].add(i)
-    df = apply_update_dict(df=df, update_dict=update_dict)
+    df = apply_update_dict(
+        df=df, 
+        update_dict=update_dict,
+        df_name=DF_FILE_NAME
+        )
     return df
 
 
+@overload
 def apply_update_dict(
     df: DataFrame,
     update_dict: Dict[Tuple[int, str|int], str],
@@ -324,14 +347,16 @@ def apply_update_dict(
     """
     Apply a dictionary of updates to a DataFrame. The keys of the dictionary are tuples
     containing the row index and column name, and the values are the new values to be set at df[row_index, column_name].
+    - update_dict: Dict[Tuple[int, str|int], str] = {
+        (row_index, column_name): new_value
+        }
+    - -> df.at[row_index, column_name] = new_value for ((row_index, column_name), new_value) in update_dict.items()
     Args:
-        df (DataFrame): DataFrame to update
-        update_dict (Dict[Tuple[int, str|int], str]): dictionary of updates to apply to df
-        df_name (str, optional): name of the DataFrame. Defaults to 'df'.
-    Raises:
-        ValueError: if the column names in update_dict are not in df.columns
+        df (DataFrame): DataFrame to be updated
+        update_dict (Dict[Tuple[int, str|int], str]): Dictionary of updates to be applied
+        df_name (str, optional): Name of the DataFrame. Defaults to 'df'.
     Returns:
-        DataFrame: updated DataFrame    
+        DataFrame: Updated DataFrame
     """
     cols_to_check: List = list(set([
         tup_key[1] for tup_key in update_dict.keys() 
@@ -366,6 +391,70 @@ def apply_update_dict(
         )
     return df
 
+@overload
+def apply_update_dict(
+    df: DataFrame,
+    update_dict: Dict[Tuple[str, str], Set[int]],
+    df_name: str = 'df'
+) -> DataFrame:
+    """
+    Apply a dictionary of updates to a DataFrame. The keys of the dictionary are tuples
+    containing the column_name and new_value; each key's mapped value is the set of unique row_indices whose intersection with column_name will be set with the new value
+    - update_dict: Dict[Tuple[str, str], Set[int]] = {
+        (column_name, new_value): row_indices
+        }
+    - -> df.at[row_index, column_name] = new_value for row_index in row_indices
+    - i.e. df.loc[row_indices, column_name] = new_value
+    Args: 
+        df (DataFrame): DataFrame to be updated
+        update_dict (Dict[Tuple[str, str], Set[int]]): dictionary of updates to be applied
+        df_name (str, optional): name of the DataFrame. Defaults to 'df'.
+    Returns:
+        DataFrame: updated DataFrame
+    """
+    cols_to_check: List = list(set([
+        tup_key[0] for tup_key in update_dict.keys() 
+        if isinstance(tup_key[1], str)
+        ]))
+    if not has_columns(df, cols_to_check):
+        raise ValueError('Invalid Column Name(s) in update_dict keys')
+    if ENABLE_DETAILED_LOG:
+        print_group(
+            label=f'Begin Update on df={df_name}, cols={cols_to_check}',
+            print_to_console=False, 
+            log_path=FIELD_UPDATE_LOG
+        )
+    num_updates: int = 0
+    for (col_name, new_value), indices in update_dict.items():
+        indices = list(indices)
+        if ENABLE_DETAILED_LOG:
+            print_group(
+                label=f'apply_update_dict(df={df_name}, dict), updating {col_name} to {new_value} for {len(indices)} rows',
+                indent=0,
+                print_to_console=False, 
+                log_path=FIELD_UPDATE_LOG
+            )
+        for i, row_idx in enumerate(indices):
+            if ENABLE_DETAILED_LOG:
+                print_group(
+                    label=f'Update #{num_updates+1}, ({i+1}/{len(indices)})',
+                    data=[
+                        'Old: ' + f'df.at[{row_idx}, {col_name}] = \"{df.at[row_idx, col_name]}\"',
+                        'New: ' + f'df.at[{row_idx}, {col_name}] = \"{new_value}\"'
+                        ],
+                    indent=1,
+                    print_to_console=False, 
+                    log_path=FIELD_UPDATE_LOG
+                )
+            num_updates += 1
+            df.at[row_idx, col_name] = new_value
+    if ENABLE_DETAILED_LOG:
+        print_group(
+            label=f'End Update on df={df_name}, num_updates={num_updates}',
+            print_to_console=False, 
+            log_path=FIELD_UPDATE_LOG
+        )
+    return df
 
 def filter_by_text(
     df: DataFrame, 

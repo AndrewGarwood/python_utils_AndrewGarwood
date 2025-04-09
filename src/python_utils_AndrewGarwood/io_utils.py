@@ -19,10 +19,12 @@ DEFAULT_LOG: str = 'Path/To/DefaultLog/File'# os.getenv('DEFAULT_LOG_FILE')
 FIELD_UPDATE_LOG: str = 'Path/To/FieldUpdateLog/File'# os.getenv('FIELD_UPDATE_LOG')
 
 __all__ = [
-    'print_group', 'concatenate_dataframes_to_excel', 'concatenate_dataframes_to_excel_sheet', 'write_dataframes_to_excel'
+    'print_group', 'concatenate_dataframes_to_excel', 'concatenate_dataframes_to_excel_sheet', 
+    'write_dataframes_to_excel', 'read_file_lines_as_list', 'write_list_to_txt_file',
+    'write_list_to_json', 'write_dict_to_json'
 ]
 
-# like a worse version of json pretty printing...
+# inspired by javascripts console.group()
 def print_group(
     label: str = f'Print Group {datetime.now()}', 
     data: List[str] = [], 
@@ -31,6 +33,17 @@ def print_group(
     log_path: str = None,
     mode: Literal['w', 'a'] = 'a'
 ) -> None:
+    """
+    Print a group of log_statements (data) to the console and/or log file.
+
+    Args:
+        label (str, optional): _description_. Defaults to f'Print Group {datetime.now()}'.
+        data (List[str], optional): _description_. Defaults to [].
+        indent (int, optional): _description_. Defaults to 0.
+        print_to_console (bool, optional): _description_. Defaults to True.
+        log_path (str, optional): _description_. Defaults to None.
+        mode (Literal['w', 'a'], optional): _description_. Defaults to 'a'.
+    """
     timestamp: str = f"{datetime.now()}".split('.')[0]
     if not log_path and print_to_console:
         print("\t"*indent + f"({timestamp}) {label}")
@@ -167,6 +180,14 @@ def write_dataframes_to_excel(
             )
             sheet_names.append(df_name)
 
+def read_file_lines_as_list(file_path: str) -> List[Any]:
+    with open(file_path, 'r') as file:
+        file_data = file.read().strip()
+        result = []
+        for list_item in file_data.split("\n"):
+            if list_item.strip() != '':
+                result.append(list_item.strip())
+        return result
 
 def write_list_to_txt_file(file_path: str, data: List[str]) -> None:
     file_path = validate_file_extension(file_path, '.txt')
@@ -179,3 +200,8 @@ def write_list_to_json(file_path: str, list_key: str, data: List[Any]) -> None:
     data = sorted(data, key=lambda x: str(x))
     with open(file_path, 'w') as file:
         json.dump({list_key:data}, file, indent=4)
+
+def write_dict_to_json(file_path: str, data: Dict[str, Any]) -> None:
+    file_path = validate_file_extension(file_path, '.json')
+    with open(file_path, 'w') as file:
+        json.dump(data, file, indent=4)
