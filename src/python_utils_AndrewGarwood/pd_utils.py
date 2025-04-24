@@ -3,9 +3,9 @@ import warnings
 from datetime import datetime
 import pandas as pd
 from pandas import DataFrame, Series, Index
-from .regex_utils import extract_leaf
-from .io_utils import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
-from .config import DF_FILE_NAME, ENABLE_DETAILED_LOG, ENABLE_OVERWRITE
+from .regex import extract_leaf
+from .io import print_group, DEFAULT_LOG, FIELD_UPDATE_LOG
+from .config.env import DF_FILE_NAME, ENABLE_DETAILED_LOG, ENABLE_OVERWRITE
 
 from objects.FieldCondition import FieldCondition, FieldMap
 
@@ -454,6 +454,31 @@ def apply_update_dict(
             print_to_console=False, 
             log_path=FIELD_UPDATE_LOG
         )
+    return df
+
+def drop_empty_columns(df: DataFrame) -> DataFrame:
+    df = df.dropna(axis=1, how='all')
+    # Drop columns if column name contains "Unnamed"
+    df = drop_columns_if_column_name_contains(df, 'Unnamed')
+    return df
+
+def drop_columns_if_column_name_contains(df: DataFrame, cols_to_drop: List[str] | Tuple[str] | str) -> DataFrame:
+    """_summary_
+    Drop columns if column name contains any of the strings in cols_to_drop
+
+    Args:
+        df (DataFrame): _description_
+        cols_to_drop (List[str]): _description_
+
+    Returns:
+        DataFrame: _description_
+    """
+    if isinstance(cols_to_drop, str):
+        cols_to_drop = [cols_to_drop]
+    elif isinstance(cols_to_drop, tuple):
+        cols_to_drop = list(cols_to_drop)
+    
+    df = df.loc[:, ~df.columns.str.contains(regex=True, pat='|'.join(cols_to_drop))]
     return df
 
 def filter_by_text(

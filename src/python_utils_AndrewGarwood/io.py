@@ -8,7 +8,7 @@ from typing import Dict, List, Literal
 from openpyxl import load_workbook, Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils.dataframe import dataframe_to_rows
-from .file_utils import validate_file_extension
+from .file import validate_file_extension
 
 
 # from dotenv import load_dotenv
