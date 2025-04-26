@@ -1,3 +1,3 @@
-A collection of Python scripts that are useful to me. There is certainly room for improvement.
+A collection of Python scripts used to automate work tasks.
 
-https://pypi.org/project/python-utils-AndrewGarwood/0.0.1/
+Current version: 0.0.2

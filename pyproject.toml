@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python_utils_AndrewGarwood"
-version = "0.0.1"
-description = "A collection of python scripts that are useful to me. I want to keep them in one place for ease of access and version control."
+version = "0.0.2"
+description = "A collection of python scripts that are used to automate work tasks."
 authors = [
     {name = "Andrew Garwood", email = "andrew.garwood.949@gmail.com"}
 ]
