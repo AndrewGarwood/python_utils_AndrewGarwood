@@ -1,7 +1,7 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: python_utils_AndrewGarwood
-Version: 0.0.1
-Summary: A collection of python scripts that are useful to me. I want to keep them in one place for ease of access and version control.
+Version: 0.0.2
+Summary: A collection of python scripts that are used to automate work tasks.
 Author-email: Andrew Garwood <andrew.garwood.949@gmail.com>
 License: Copyright (c) 2018 The Python Packaging Authority
         
@@ -28,3 +28,8 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: pandas
 Requires-Dist: openpyxl
+Dynamic: license-file
+
+A collection of Python scripts used to automate work tasks.
+
+Current version: 0.0.2
