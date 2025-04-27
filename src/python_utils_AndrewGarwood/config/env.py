@@ -113,7 +113,7 @@ def log(
     
     if details is not None and isinstance(details, list):
         largest_detail_length: int = max([len(str(detail)) for detail in details]) if details else 0
-        indented_args.extend([str(detail).rjust(largest_detail_length + SPACES_PER_INDENT) for detail in details])
+        indented_args.extend([str(detail).rjust(SPACES_PER_INDENT + largest_detail_length) for detail in details])
     
     if subdetails is not None and isinstance(subdetails, dict):
         for sublabel, subdetails_list in subdetails.items():
